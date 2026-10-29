@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Nilai;
 use App\Models\Siswa;
 use App\Models\MataPelajaran;
+use App\Models\AktivitasSistem;
 use Illuminate\Http\Request;
 
 class NilaiController extends Controller
@@ -75,20 +76,11 @@ class NilaiController extends Controller
             ($validated['nilai_uts'] * 0.30) +
             ($validated['nilai_uas'] * 0.40);
 
-        // Cek apakah nilai untuk siswa + mapel + semester + tahun ajaran sudah ada
+        // Cek apakah nilai sudah ada
         $sudahAda = Nilai::where('siswa_id', $validated['siswa_id'])
-            ->where(
-                'mata_pelajaran_id',
-                $validated['mata_pelajaran_id']
-            )
-            ->where(
-                'semester',
-                $validated['semester']
-            )
-            ->where(
-                'tahun_ajaran',
-                $validated['tahun_ajaran']
-            )
+            ->where('mata_pelajaran_id', $validated['mata_pelajaran_id'])
+            ->where('semester', $validated['semester'])
+            ->where('tahun_ajaran', $validated['tahun_ajaran'])
             ->exists();
 
         if ($sudahAda) {
@@ -100,29 +92,44 @@ class NilaiController extends Controller
                 ]);
         }
 
-        Nilai::create([
+        // Simpan nilai
+        $nilai = Nilai::create([
             'siswa_id' => $validated['siswa_id'],
+            'mata_pelajaran_id' => $validated['mata_pelajaran_id'],
+            'nilai_tugas' => $validated['nilai_tugas'],
+            'nilai_uts' => $validated['nilai_uts'],
+            'nilai_uas' => $validated['nilai_uas'],
+            'nilai_akhir' => round($nilaiAkhir, 2),
+            'semester' => $validated['semester'],
+            'tahun_ajaran' => $validated['tahun_ajaran'],
+        ]);
 
-            'mata_pelajaran_id' =>
-                $validated['mata_pelajaran_id'],
+        // Ambil data guru yang sedang login
+        $user = auth()->user();
 
-            'nilai_tugas' =>
-                $validated['nilai_tugas'],
+        // Ambil nama siswa dan mata pelajaran
+        $siswa = Siswa::find($validated['siswa_id']);
+        $mataPelajaran = MataPelajaran::find(
+            $validated['mata_pelajaran_id']
+        );
 
-            'nilai_uts' =>
-                $validated['nilai_uts'],
-
-            'nilai_uas' =>
-                $validated['nilai_uas'],
-
-            'nilai_akhir' =>
-                round($nilaiAkhir, 2),
-
-            'semester' =>
-                $validated['semester'],
-
-            'tahun_ajaran' =>
-                $validated['tahun_ajaran'],
+        // Catat aktivitas sistem
+        AktivitasSistem::create([
+            'user_id' => $user->id,
+            'nama_pengguna' => $user->name,
+            'aktivitas' => 'Guru menambahkan nilai',
+            'keterangan' =>
+                'Menambahkan nilai ' .
+                ($mataPelajaran->nama ?? 'mata pelajaran') .
+                ' untuk siswa ' .
+                ($siswa->nama ?? 'siswa') .
+                '. Nilai akhir: ' .
+                round($nilaiAkhir, 2) .
+                '. Semester ' .
+                $validated['semester'] .
+                ', tahun ajaran ' .
+                $validated['tahun_ajaran'] .
+                '.',
         ]);
 
         return redirect()
@@ -139,8 +146,7 @@ class NilaiController extends Controller
 
         $siswas = Siswa::orderBy('nama')->get();
 
-        $mataPelajarans =
-            MataPelajaran::orderBy('nama')->get();
+        $mataPelajarans = MataPelajaran::orderBy('nama')->get();
 
         return view(
             'nilai.edit',
@@ -158,24 +164,12 @@ class NilaiController extends Controller
 
         $validated = $request->validate([
             'siswa_id' => 'required|exists:siswas,id',
-
-            'mata_pelajaran_id' =>
-                'required|exists:mata_pelajarans,id',
-
-            'nilai_tugas' =>
-                'required|numeric|min:0|max:100',
-
-            'nilai_uts' =>
-                'required|numeric|min:0|max:100',
-
-            'nilai_uas' =>
-                'required|numeric|min:0|max:100',
-
-            'semester' =>
-                'required|in:Ganjil,Genap',
-
-            'tahun_ajaran' =>
-                'required|string|max:20',
+            'mata_pelajaran_id' => 'required|exists:mata_pelajarans,id',
+            'nilai_tugas' => 'required|numeric|min:0|max:100',
+            'nilai_uts' => 'required|numeric|min:0|max:100',
+            'nilai_uas' => 'required|numeric|min:0|max:100',
+            'semester' => 'required|in:Ganjil,Genap',
+            'tahun_ajaran' => 'required|string|max:20',
         ]);
 
         // Hitung ulang nilai akhir
@@ -186,18 +180,9 @@ class NilaiController extends Controller
 
         // Cek duplikasi kecuali data yang sedang diedit
         $sudahAda = Nilai::where('siswa_id', $validated['siswa_id'])
-            ->where(
-                'mata_pelajaran_id',
-                $validated['mata_pelajaran_id']
-            )
-            ->where(
-                'semester',
-                $validated['semester']
-            )
-            ->where(
-                'tahun_ajaran',
-                $validated['tahun_ajaran']
-            )
+            ->where('mata_pelajaran_id', $validated['mata_pelajaran_id'])
+            ->where('semester', $validated['semester'])
+            ->where('tahun_ajaran', $validated['tahun_ajaran'])
             ->where('id', '!=', $nilai->id)
             ->exists();
 
@@ -210,30 +195,42 @@ class NilaiController extends Controller
                 ]);
         }
 
+        // Update nilai
         $nilai->update([
-            'siswa_id' =>
-                $validated['siswa_id'],
+            'siswa_id' => $validated['siswa_id'],
+            'mata_pelajaran_id' => $validated['mata_pelajaran_id'],
+            'nilai_tugas' => $validated['nilai_tugas'],
+            'nilai_uts' => $validated['nilai_uts'],
+            'nilai_uas' => $validated['nilai_uas'],
+            'nilai_akhir' => round($nilaiAkhir, 2),
+            'semester' => $validated['semester'],
+            'tahun_ajaran' => $validated['tahun_ajaran'],
+        ]);
 
-            'mata_pelajaran_id' =>
-                $validated['mata_pelajaran_id'],
+        // Catat aktivitas perubahan nilai
+        $user = auth()->user();
 
-            'nilai_tugas' =>
-                $validated['nilai_tugas'],
+        $siswa = Siswa::find($validated['siswa_id']);
+        $mataPelajaran = MataPelajaran::find(
+            $validated['mata_pelajaran_id']
+        );
 
-            'nilai_uts' =>
-                $validated['nilai_uts'],
-
-            'nilai_uas' =>
-                $validated['nilai_uas'],
-
-            'nilai_akhir' =>
-                round($nilaiAkhir, 2),
-
-            'semester' =>
-                $validated['semester'],
-
-            'tahun_ajaran' =>
-                $validated['tahun_ajaran'],
+        AktivitasSistem::create([
+            'user_id' => $user->id,
+            'nama_pengguna' => $user->name,
+            'aktivitas' => 'Guru memperbarui nilai',
+            'keterangan' =>
+                'Memperbarui nilai ' .
+                ($mataPelajaran->nama ?? 'mata pelajaran') .
+                ' untuk siswa ' .
+                ($siswa->nama ?? 'siswa') .
+                '. Nilai akhir terbaru: ' .
+                round($nilaiAkhir, 2) .
+                '. Semester ' .
+                $validated['semester'] .
+                ', tahun ajaran ' .
+                $validated['tahun_ajaran'] .
+                '.',
         ]);
 
         return redirect()
@@ -248,7 +245,26 @@ class NilaiController extends Controller
     {
         $nilai = Nilai::findOrFail($id);
 
+        // Ambil informasi nilai sebelum dihapus
+        $siswa = $nilai->siswa;
+        $mataPelajaran = $nilai->mataPelajaran;
+        $user = auth()->user();
+
+        // Hapus nilai
         $nilai->delete();
+
+        // Catat aktivitas penghapusan nilai
+        AktivitasSistem::create([
+            'user_id' => $user->id,
+            'nama_pengguna' => $user->name,
+            'aktivitas' => 'Guru menghapus nilai',
+            'keterangan' =>
+                'Menghapus nilai ' .
+                ($mataPelajaran->nama ?? 'mata pelajaran') .
+                ' milik siswa ' .
+                ($siswa->nama ?? 'siswa') .
+                '.',
+        ]);
 
         return redirect()
             ->route('nilai.index')

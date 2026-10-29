@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Kehadiran;
+use App\Models\AktivitasSistem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -131,6 +132,29 @@ class KehadiranController extends Controller
             'longitude' => $validated['longitude'],
             'keterangan' => 'Absensi melalui sistem GPS dalam radius sekolah',
         ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | CATAT AKTIVITAS SISTEM
+        |--------------------------------------------------------------------------
+        */
+
+        AktivitasSistem::create([
+            'user_id' => $user->id,
+            'nama_pengguna' => $siswa->nama ?? $user->name,
+            'aktivitas' => 'Melakukan absensi GPS',
+            'keterangan' => 'Siswa berhasil melakukan absensi pada '
+                . Carbon::now()->format('H:i')
+                . '. Status: Hadir. Jarak dari sekolah: '
+                . round($jarak)
+                . ' meter.',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | REDIRECT SETELAH ABSENSI
+        |--------------------------------------------------------------------------
+        */
 
         return redirect()
             ->route('kehadiran.siswa')
